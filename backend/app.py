@@ -7,6 +7,9 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from huggingface_hub import InferenceClient
+from langchain_huggingface import HuggingFaceEndpoint
+from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
 import os
 from dotenv import load_dotenv
 
@@ -66,30 +69,31 @@ async def question_answering(query_request: QueryRequest):
         docs = db.similarity_search_by_vector(embedding_vector)
         context = " ".join([doc.page_content for doc in docs[:2]])
 
-        """
-        # Implementing the Retriever
-        retriever = db.as_retriever(
-            search_type="mmr",
-            search_kwargs={"k": 2}
-            # search_kwargs={"score_threshold": 0.5}
-        )
-        
-        docs = retriever.invoke(query)
-        
-        # Preparing context for the language model
-        context = " ".join([doc.page_content for doc in docs])
-        """
-        
+        # Prompt
+        template = """Answer the question based only on the following context:
+        {context}
 
-        # Call the language model for answer generation
-        messages = [{"role": "user", "content": f"{query}. Don't mention the provided context. \n\nContext: {context}"}]
+        Question: {query}
+        """
         
-        response = ""
-        for message in client.chat_completion(model="microsoft/Phi-3-mini-4k-instruct", messages=messages, max_tokens=500, stream=True):
-            response += message.choices[0].delta.content
+        prompt = PromptTemplate.from_template(template)
+
+        repo_id = "mistralai/Mistral-7B-Instruct-v0.2"
+
+        llm = HuggingFaceEndpoint(
+            repo_id=repo_id,
+            max_length=128,
+            temperature=0.5,
+            huggingfacehub_api_token=api_token,
+        )
+        llm_chain = prompt | llm
+        print(llm_chain.invoke({"context": context, "query": query}))
+
+        response = llm_chain.invoke({"context": context, "query": query})
 
         return {"answer": response}
-    
+        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
