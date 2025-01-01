@@ -18,7 +18,9 @@ Go to the project directory
 Make a virtual enviorment (Optional) 
 ```bash
 python -m venv venv
+
 .\venv\Scripts\activate     # On windows
+source venv/bin/activate    # On linux
 ```
 
 Install dependencies
